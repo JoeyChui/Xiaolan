@@ -34,33 +34,41 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-deriveddata-
 
-      # 编译 iPhone App（不签名，跑在模拟器 destination）
-      - name: Build iPhone App
+      # 编译 iPhone App + Watch Extension（联合 build，产出 .app）
+      - name: Build (iPhone + Watch, no signing)
         run: |
           xcodebuild build \
             -project DoubaoWatch.xcodeproj \
             -scheme DoubaoWatchApp \
-            -destination "platform=iOS Simulator,name=iPhone 15" \
+            -destination "generic/platform=iOS Simulator" \
             -configuration Debug \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
             CODE_SIGN_IDENTITY="-" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             DEVELOPMENT_TEAM="" \
-            | xcpretty --color || true
+            | xcpretty --color
 
-      # 编译 Watch Extension（不签名，跑在 Watch 模拟器）
-      - name: Build Watch Extension
+      # 打包 .app 为 zip artifact
+      - name: Package simulator .app
         run: |
-          xcodebuild build \
-            -project DoubaoWatch.xcodeproj \
-            -scheme "DoubaoWatch WatchKit Extension" \
-            -destination "platform=watchOS Simulator,name=Apple Watch Series 9 (45mm)" \
-            -configuration Debug \
-            CODE_SIGN_IDENTITY="-" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            DEVELOPMENT_TEAM="" \
-            | xcpretty --color || true
+          APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -path "*/Debug-iphonesimulator/*" | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "❌ .app not found"
+            exit 1
+          fi
+          echo "Found: $APP_PATH"
+          mkdir -p "$RUNNER_TEMP/artifacts"
+          cd "$(dirname "$APP_PATH")"
+          zip -r "$RUNNER_TEMP/artifacts/DoubaoWatch-simulator.zip" "$(basename "$APP_PATH")"
+          echo "APP_ZIP=$RUNNER_TEMP/artifacts/DoubaoWatch-simulator.zip" >> $GITHUB_ENV
+
+      - name: Upload simulator .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoubaoWatch-simulator-${{ github.sha }}
+          path: ${{ runner.temp }}/artifacts/DoubaoWatch-simulator.zip
+          retention-days: 7
 
       - name: Summary
         if: always()
@@ -71,3 +79,78 @@ jobs:
           echo "| Commit | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Branch | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Xcode | 15 / macOS 14 |" >> $GITHUB_STEP_SUMMARY
+          echo "| Artifact | DoubaoWatch-simulator-${{ github.sha }}.zip |" >> $GITHUB_STEP_SUMMARY
+
+  # ── 真机签名打包（需要配好 Secrets 后手动触发）──────────────────
+  build-device:
+    name: Build for Real Device (needs Secrets)
+    runs-on: macos-14
+    if: github.event_name == 'workflow_dispatch'
+    # 只在手动触发时运行，避免因缺少 Secrets 导致自动构建失败
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 15
+        run: sudo xcode-select -s /Applications/Xcode_15.4.app
+
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          CERT_PATH=$RUNNER_TEMP/cert.p12
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode -o $CERT_PATH
+          security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
+          security import $CERT_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+
+      - name: Install provisioning profiles
+        env:
+          PROVISIONING_PROFILE_BASE64: ${{ secrets.PROVISIONING_PROFILE_BASE64 }}
+          WATCH_PROVISIONING_PROFILE_BASE64: ${{ secrets.WATCH_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo -n "$PROVISIONING_PROFILE_BASE64" | base64 --decode \
+            -o ~/Library/MobileDevice/Provisioning\ Profiles/app.mobileprovision
+          echo -n "$WATCH_PROVISIONING_PROFILE_BASE64" | base64 --decode \
+            -o ~/Library/MobileDevice/Provisioning\ Profiles/watch.mobileprovision
+
+      - name: Archive (real device)
+        run: |
+          xcodebuild archive \
+            -project DoubaoWatch.xcodeproj \
+            -scheme DoubaoWatchApp \
+            -destination "generic/platform=iOS" \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/DoubaoWatch.xcarchive" \
+            DEVELOPMENT_TEAM="${{ secrets.DEVELOPMENT_TEAM }}" \
+            | xcpretty
+
+      - name: Export IPA (ad-hoc)
+        run: |
+          cat > $RUNNER_TEMP/ExportOptions.plist << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>ad-hoc</string>
+            <key>teamID</key><string>${{ secrets.DEVELOPMENT_TEAM }}</string>
+          </dict></plist>
+          EOF
+          xcodebuild -exportArchive \
+            -archivePath "$RUNNER_TEMP/DoubaoWatch.xcarchive" \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/export" \
+            | xcpretty
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DoubaoWatch-adhoc-${{ github.sha }}
+          path: ${{ runner.temp }}/export/*.ipa
+          retention-days: 14
