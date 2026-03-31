@@ -1,0 +1,35 @@
+# Xcode
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+*.xcbkptlist
+DerivedData/
+*.moved-aside
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Build
+build/
+*.o
+*.d
+
+# CocoaPods / SPM
+Pods/
+.build/
+*.resolved
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+
+# Secrets — 千万不要提交真实密钥！
+*Secrets.swift
+*secrets.swift
