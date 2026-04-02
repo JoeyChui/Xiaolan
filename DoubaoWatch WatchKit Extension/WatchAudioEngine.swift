@@ -96,11 +96,11 @@ final class WatchAudioEngine: NSObject, ObservableObject {
             ) else { return }
 
             var error: NSError?
-            var inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+            let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
                 outStatus.pointee = .haveData
                 return buffer
             }
-            converter.convert(to: convertedBuffer, error: &error, withInputFrom: &inputBlock)
+            converter.convert(to: convertedBuffer, error: &error, withInputFrom: inputBlock)
             guard error == nil,
                   let int16Data = convertedBuffer.int16ChannelData else { return }
 
@@ -224,7 +224,12 @@ final class WatchAudioEngine: NSObject, ObservableObject {
 
     private func configureAudioSession() {
         let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .defaultToSpeaker])
+        // watchOS 不支持 defaultToSpeaker，旧系统也不支持 allowBluetooth。
+        if #available(watchOS 11.0, *) {
+            try? session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+        } else {
+            try? session.setCategory(.playAndRecord, mode: .voiceChat)
+        }
         try? session.setActive(true)
     }
 

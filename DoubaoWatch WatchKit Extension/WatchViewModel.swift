@@ -100,7 +100,7 @@ final class WatchViewModel: NSObject, ObservableObject {
 
     private func setupAudioCallbacks() {
         // PCM 块 → 发给 iPhone
-        audioEngine.onPCMChunk = { [weak self] data in
+        audioEngine.onPCMChunk = { data in
             guard WCSession.default.isReachable else { return }
             WCSession.default.sendMessageData(data, replyHandler: nil) { err in
                 print("[WatchVM] sendAudio error: \(err)")
