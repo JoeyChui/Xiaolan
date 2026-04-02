@@ -41,7 +41,7 @@ struct DoubaoConfig {
     回答请保持简短（不超过 50 字），因为用户在手腕上看文字和听语音。
     """
     static let speakingStyle = "简洁友好"
-    static let botName       = "豆包助手"
+    static let botName       = "Xiaolan"
 }
 
 // MARK: - 事件类型常量

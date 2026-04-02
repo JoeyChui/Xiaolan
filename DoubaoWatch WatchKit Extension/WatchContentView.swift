@@ -57,7 +57,7 @@ struct WatchContentView: View {
                 Image(systemName: "waveform.circle")
                     .font(.system(size: 30))
                     .foregroundStyle(.white.opacity(0.6))
-                Text("豆包助手")
+                Text("Xiaolan")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.75))
                 Text("点击麦克风开始")

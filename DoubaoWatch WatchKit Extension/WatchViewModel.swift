@@ -81,7 +81,7 @@ final class WatchViewModel: NSObject, ObservableObject {
 
     private func startListening() {
         guard WCSession.default.isReachable else {
-            state = .error("请打开 iPhone 上的 DoubaoWatch App")
+            state = .error("请打开 iPhone 上的 Xiaolan App")
             return
         }
         state     = .connecting

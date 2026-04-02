@@ -12,7 +12,7 @@ struct ContentView: View {
                 .font(.system(size: 60))
                 .foregroundStyle(.blue)
 
-            Text("DoubaoWatch")
+            Text("Xiaolan")
                 .font(.title.bold())
 
             Text("请保持此 App 在前台或后台运行\n以便 Apple Watch 通过它连接豆包语音 AI")
