@@ -11,8 +11,8 @@ import Combine
 
 struct DoubaoConfig {
     // ⚠️ 请在此填入你的火山引擎鉴权信息
-    static let appID     = "YOUR_APP_ID"
-    static let accessKey = "YOUR_ACCESS_KEY"
+    static let appID     = "2589926450"
+    static let accessKey = "B9CkZEUcW7mUtLE84YlSjNG-GU97PaNB"
     static let appKey    = "YOUR_APP_KEY"
 
     // 模型版本：1.2.1.1 = O版本，1.2.2.2 = O2.0版本
